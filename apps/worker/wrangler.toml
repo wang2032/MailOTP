@@ -1,6 +1,12 @@
 name = "mailotp-email-worker"
 main = "src/index.ts"
 compatibility_date = "2026-06-03"
+account_id = "06103c1f6d19d18314cacf6e6fcd92f9"
+workers_dev = false
+
+[vars]
+API_URL = "https://mailotp.joeywang.store"
+MAIL_DOMAIN = "joeystory.xyz"
 
 [observability]
 enabled = true
