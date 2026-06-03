@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Deploy Docker Image
 
 on:
   push:
@@ -22,11 +22,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to Harbor
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ secrets.HARBOR_HOST }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -35,27 +36,10 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ secrets.HARBOR_HOST }}/${{ secrets.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:latest
+            ${{ secrets.HARBOR_HOST }}/${{ secrets.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Build deploy image archive
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          outputs: type=docker,dest=/tmp/mailotp-image.tar
-          cache-from: type=gha
-
-      - name: Upload deploy image archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: mailotp-image
-          path: /tmp/mailotp-image.tar
-          retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
@@ -64,53 +48,39 @@ jobs:
     permissions:
       contents: read
     env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      HARBOR_HOST: ${{ secrets.HARBOR_HOST }}
+      HARBOR_PROJECT: ${{ secrets.HARBOR_PROJECT }}
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
     steps:
-      - name: Download deploy image archive
-        uses: actions/download-artifact@v4
-        with:
-          name: mailotp-image
-          path: deploy-image
-
-      - name: Prepare deploy directory
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          password: ${{ secrets.DEPLOY_PASSWORD }}
-          script: mkdir -p /opt/mailotp
-
-      - name: Upload image archive to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          password: ${{ secrets.DEPLOY_PASSWORD }}
-          source: deploy-image/mailotp-image.tar
-          target: /opt/mailotp
-          strip_components: 1
-
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           password: ${{ secrets.DEPLOY_PASSWORD }}
-          envs: DOCKERHUB_USERNAME
+          envs: HARBOR_HOST,HARBOR_PROJECT,HARBOR_USERNAME,HARBOR_PASSWORD
           script: |
             set -e
             mkdir -p /opt/mailotp
+            IMAGE_REF=${HARBOR_HOST}/${HARBOR_PROJECT}/mailotp:latest
 
             if [ ! -f /opt/mailotp/.env ]; then
               cat > /opt/mailotp/.env <<EOF
-            DOCKER_IMAGE=${DOCKERHUB_USERNAME}/mailotp:latest
+            DOCKER_IMAGE=${IMAGE_REF}
             DATABASE_URL=
             REDIS_URL=
             WEBHOOK_SECRET=
             MAIL_DOMAIN=joeystory.xyz
             CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080
-            EOF
+EOF
               chmod 600 /opt/mailotp/.env
+            else
+              if grep -q '^DOCKER_IMAGE=' /opt/mailotp/.env; then
+                sed -i "s#^DOCKER_IMAGE=.*#DOCKER_IMAGE=${IMAGE_REF}#" /opt/mailotp/.env
+              else
+                printf '\nDOCKER_IMAGE=%s\n' "${IMAGE_REF}" >> /opt/mailotp/.env
+              fi
             fi
 
             cat > /opt/mailotp/docker-compose.yml <<'EOF'
@@ -134,6 +104,7 @@ jobs:
             EOF
 
             cd /opt/mailotp
-            docker load -i /opt/mailotp/mailotp-image.tar
+            echo "${HARBOR_PASSWORD}" | docker login "${HARBOR_HOST}" -u "${HARBOR_USERNAME}" --password-stdin
+            docker compose --env-file .env pull
             docker compose --env-file .env up -d
             docker image prune -f

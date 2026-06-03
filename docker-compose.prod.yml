@@ -1,6 +1,6 @@
 services:
   mailotp:
-    image: ${DOCKER_IMAGE:-joeywang2032/mailotp:latest}
+    image: ${DOCKER_IMAGE:-harbor.10rig.com:8443/apps/mailotp:latest}
     restart: unless-stopped
     ports:
       - "18080:8080"

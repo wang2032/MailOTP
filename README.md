@@ -67,16 +67,18 @@ docker run --rm -p 18080:8080 \
   mailotp:latest
 ```
 
-For DockerHub automated builds, use the repository root as the build context and `Dockerfile` as the Dockerfile path.
+For registry automated builds, use the repository root as the build context and `Dockerfile` as the Dockerfile path.
 
-## GitHub Actions to DockerHub and Server
+## GitHub Actions to Harbor and Server
 
-The workflow at `.github/workflows/develop.yml` builds the image, pushes it to DockerHub, then deploys it on the server with Docker Compose.
+The workflow at `.github/workflows/develop.yml` builds the image, pushes it to Harbor, then deploys it on the server with Docker Compose.
 
 Configure these GitHub repository secrets:
 
-- `DOCKERHUB_USERNAME`: DockerHub username, for example `joeywang2032`
-- `DOCKERHUB_TOKEN`: DockerHub access token
+- `HARBOR_HOST`: Harbor host, for example `harbor.10rig.com:8443`
+- `HARBOR_PROJECT`: Harbor project, for example `apps`
+- `HARBOR_USERNAME`: Harbor username
+- `HARBOR_PASSWORD`: Harbor password or robot token
 - `DEPLOY_HOST`: deployment server host, for example `117.72.157.82`
 - `DEPLOY_USER`: SSH user, for example `root`
 - `DEPLOY_PASSWORD`: SSH password
@@ -84,7 +86,7 @@ Configure these GitHub repository secrets:
 Runtime app configuration lives on the server in `/opt/mailotp/.env`, not in GitHub Secrets:
 
 ```bash
-DOCKER_IMAGE=joeywang2032/mailotp:latest
+DOCKER_IMAGE=harbor.10rig.com:8443/apps/mailotp:latest
 DATABASE_URL=postgres://postgres:<password>@host.docker.internal:35432/mailotp?sslmode=disable
 REDIS_URL=redis://host.docker.internal:26739
 WEBHOOK_SECRET=<shared-secret>
@@ -92,10 +94,10 @@ MAIL_DOMAIN=joeystory.xyz
 CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080
 ```
 
-The deploy job uploads a Docker image archive to `/opt/mailotp/mailotp-image.tar`, writes `/opt/mailotp/docker-compose.yml`, and runs:
+The deploy job writes `/opt/mailotp/docker-compose.yml` and runs:
 
 ```bash
-docker load -i /opt/mailotp/mailotp-image.tar
+docker compose --env-file .env pull
 docker compose --env-file .env up -d
 ```
 
