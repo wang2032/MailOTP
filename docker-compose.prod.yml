@@ -1,0 +1,17 @@
+services:
+  mailotp:
+    image: your-dockerhub-username/mailotp:latest
+    restart: unless-stopped
+    ports:
+      - "18080:8080"
+    environment:
+      DATABASE_URL: "postgres://postgres:CHANGE_ME@host.docker.internal:35432/mailotp?sslmode=disable"
+      REDIS_URL: "redis://host.docker.internal:26739"
+      WEBHOOK_SECRET: "CHANGE_ME"
+      MAIL_DOMAIN: "joeystory.xyz"
+      HTTP_ADDR: ":8080"
+      STATIC_DIR: "/app/web"
+      AUTO_CREATE_TABLES: "true"
+      CORS_ORIGINS: "http://joeystory.xyz,http://joeystory.xyz:18080,http://117.72.157.82:18080,http://localhost:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

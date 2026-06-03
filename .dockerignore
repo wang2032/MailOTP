@@ -1,0 +1,17 @@
+.git
+.DS_Store
+node_modules
+dist
+.next
+.venv
+__pycache__
+*.pyc
+.env
+.env.*
+!.env.example
+apps/web/node_modules
+apps/web/dist
+apps/web/.next
+apps/api/.venv
+apps/worker/node_modules
+.wrangler

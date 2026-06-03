@@ -1,0 +1,6 @@
+name = "mailotp-email-worker"
+main = "src/index.ts"
+compatibility_date = "2026-06-03"
+
+[observability]
+enabled = true
