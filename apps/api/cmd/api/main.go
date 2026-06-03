@@ -179,6 +179,11 @@ func (s *server) createInbox(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) getInbox(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, "/events") {
+		s.streamInboxEvents(w, r)
+		return
+	}
+
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -216,6 +221,67 @@ func (s *server) getInbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.inboxResponse(*inbox, messages))
+}
+
+func (s *server) streamInboxEvents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	rawAlias := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/inboxes/"), "/events")
+	alias, err := normalizeAlias(rawAlias)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	if _, err := s.store.FindInbox(r.Context(), alias); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming is not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+
+	lastID := ""
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	sendLatest := func() {
+		message, err := s.store.LatestMessage(r.Context(), alias)
+		if err != nil {
+			log.Printf("stream latest message: %v", err)
+			return
+		}
+		if message == nil || message.ID == lastID {
+			return
+		}
+		lastID = message.ID
+		writeSSE(w, "message", message)
+		flusher.Flush()
+	}
+
+	sendLatest()
+	writeSSEComment(w, "connected")
+	flusher.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			sendLatest()
+		}
+	}
 }
 
 func (s *server) getLatestCode(w http.ResponseWriter, r *http.Request) {
@@ -407,6 +473,19 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, errorResponse{Error: message})
 }
 
+func writeSSE(w http.ResponseWriter, event string, payload any) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("marshal sse payload: %v", err)
+		return
+	}
+	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+}
+
+func writeSSEComment(w http.ResponseWriter, comment string) {
+	_, _ = fmt.Fprintf(w, ": %s\n\n", comment)
+}
+
 func spaFileServer(staticDir string) http.Handler {
 	fileServer := http.FileServer(http.Dir(staticDir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -428,6 +507,12 @@ func spaFileServer(staticDir string) http.Handler {
 
 func withCORS(cfg config.Config, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mail" {
+			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		}
+
 		origin := r.Header.Get("Origin")
 		if origin != "" && originAllowed(origin, cfg.CORSOrigins) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)

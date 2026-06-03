@@ -35,6 +35,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
+  const [streamStatus, setStreamStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
 
   const latest = inbox?.messages[0];
   const isDefaultDomain = mailDomain === "mailotp.com";
@@ -56,17 +58,55 @@ export default function App() {
 
   useEffect(() => {
     if (!activeAlias) {
+      setStreamStatus("idle");
       return;
     }
-    const timer = window.setInterval(() => {
-      void loadInbox(activeAlias, { quiet: true });
-    }, 5000);
-    return () => window.clearInterval(timer);
+    void loadInbox(activeAlias, { quiet: true });
+    setStreamStatus("connecting");
+
+    const stream = new EventSource(`${API_URL}/api/inboxes/${encodeURIComponent(activeAlias)}/events?t=${Date.now()}`);
+    stream.onopen = () => setStreamStatus("connected");
+    stream.onerror = () => setStreamStatus("error");
+    stream.addEventListener("message", (event) => {
+      const message = JSON.parse(event.data) as Message;
+      setInbox((current) => {
+        if (!current || current.alias !== message.alias) {
+          return current;
+        }
+        const existing = current.messages.filter((item) => item.id !== message.id);
+        return { ...current, messages: [message, ...existing] };
+      });
+      setLastCheckedAt(new Date());
+    });
+
+    return () => {
+      stream.close();
+      setStreamStatus("idle");
+    };
+  }, [activeAlias]);
+
+  useEffect(() => {
+    if (!activeAlias) {
+      return;
+    }
+
+    function refreshOnVisible() {
+      if (document.visibilityState === "visible") {
+        void loadInbox(activeAlias, { quiet: true });
+      }
+    }
+
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    window.addEventListener("focus", refreshOnVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+      window.removeEventListener("focus", refreshOnVisible);
+    };
   }, [activeAlias]);
 
   async function loadConfig() {
     try {
-      const response = await fetch(`${API_URL}/api/config`);
+      const response = await fetch(`${API_URL}/api/config`, { cache: "no-store" });
       const payload = await parseResponse<AppConfig>(response);
       setMailDomain(payload.mail_domain);
     } catch (err) {
@@ -83,6 +123,7 @@ export default function App() {
       const response = await fetch(`${API_URL}/api/inboxes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify(alias ? { alias } : {}),
       });
       const payload = await parseResponse<InboxResponse>(response);
@@ -112,11 +153,14 @@ export default function App() {
     }
     setError("");
     try {
-      const response = await fetch(`${API_URL}/api/inboxes/${encodeURIComponent(alias)}`);
+      const response = await fetch(`${API_URL}/api/inboxes/${encodeURIComponent(alias)}?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const payload = await parseResponse<InboxResponse>(response);
       setInbox(payload);
       setActiveAlias(payload.alias);
       setAliasInput(payload.alias);
+      setLastCheckedAt(new Date());
     } catch (err) {
       if (!options?.quiet) {
         setError(errorMessage(err));
@@ -186,12 +230,8 @@ export default function App() {
               <strong>{activeAlias || "无"}</strong>
             </div>
             <div>
-              <span>刷新频率</span>
-              <strong>5 秒</strong>
-            </div>
-            <div>
-              <span>收件域名</span>
-              <strong>{mailDomain || "读取中"}</strong>
+              <span>实时监听</span>
+              <strong>{streamStatusText(streamStatus)}</strong>
             </div>
           </div>
         </aside>
@@ -222,6 +262,7 @@ export default function App() {
             <span>最新验证码</span>
             <strong>{latest?.code || "等待中"}</strong>
             <small>{formattedTime || "暂无邮件"}</small>
+            <small>{lastCheckedAt ? `实时更新 ${new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(lastCheckedAt)}` : "创建或打开收件箱后自动监听"}</small>
           </div>
 
           <div className="messages">
@@ -262,4 +303,17 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "发生未知错误";
+}
+
+function streamStatusText(status: "idle" | "connecting" | "connected" | "error"): string {
+  if (status === "connected") {
+    return "已连接";
+  }
+  if (status === "connecting") {
+    return "连接中";
+  }
+  if (status === "error") {
+    return "重连中";
+  }
+  return "未启动";
 }
