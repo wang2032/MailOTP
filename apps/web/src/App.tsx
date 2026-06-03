@@ -114,12 +114,10 @@ export default function App() {
     }
   }
 
-  async function createInbox(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function createInbox(alias: string) {
     setLoading(true);
     setError("");
     try {
-      const alias = aliasInput.trim();
       const response = await fetch(`${API_URL}/api/inboxes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,6 +133,21 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function createCustomInbox(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const alias = aliasInput.trim();
+    if (!alias) {
+      setError("请输入自定义邮箱别名，或点击随机生成。");
+      return;
+    }
+    await createInbox(alias);
+  }
+
+  async function createRandomInbox() {
+    setAliasInput("");
+    await createInbox("");
   }
 
   async function openInbox(event?: FormEvent<HTMLFormElement>) {
@@ -201,8 +214,13 @@ export default function App() {
             <span>收件箱</span>
           </div>
 
-          <form className="control-stack" onSubmit={createInbox}>
-            <label htmlFor="alias">邮箱别名</label>
+          <form className="control-stack" onSubmit={createCustomInbox}>
+            <button type="button" className="wide-action" onClick={createRandomInbox} disabled={loading}>
+              {loading ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+              随机生成邮箱
+            </button>
+
+            <label htmlFor="alias">自定义别名</label>
             <input
               id="alias"
               value={aliasInput}
@@ -210,10 +228,11 @@ export default function App() {
               placeholder="u7f3k"
               spellCheck={false}
             />
+            <p className="helper-text">输入别名可创建或打开固定邮箱。</p>
             <div className="button-row">
-              <button type="submit" disabled={loading}>
-                {loading ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
-                创建
+              <button type="submit" disabled={loading || !aliasInput.trim()}>
+                <Plus size={16} />
+                创建自定义
               </button>
               <button type="button" className="secondary" onClick={() => openInbox()} disabled={loading || !aliasInput.trim()}>
                 <Search size={16} />
