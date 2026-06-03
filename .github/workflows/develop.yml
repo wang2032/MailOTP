@@ -40,6 +40,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build deploy image archive
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          outputs: type=docker,dest=/tmp/mailotp-image.tar
+          cache-from: type=gha
+
+      - name: Upload deploy image archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: mailotp-image
+          path: /tmp/mailotp-image.tar
+          retention-days: 1
+
   deploy:
     runs-on: ubuntu-latest
     needs: docker
@@ -48,15 +65,38 @@ jobs:
       contents: read
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
+      - name: Download deploy image archive
+        uses: actions/download-artifact@v4
+        with:
+          name: mailotp-image
+          path: deploy-image
+
+      - name: Prepare deploy directory
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          script: mkdir -p /opt/mailotp
+
+      - name: Upload image archive to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          source: deploy-image/mailotp-image.tar
+          target: /opt/mailotp
+          strip_components: 1
+
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           password: ${{ secrets.DEPLOY_PASSWORD }}
-          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN
+          envs: DOCKERHUB_USERNAME
           script: |
             set -e
             mkdir -p /opt/mailotp
@@ -94,7 +134,6 @@ jobs:
             EOF
 
             cd /opt/mailotp
-            echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
-            docker compose --env-file .env pull
+            docker load -i /opt/mailotp/mailotp-image.tar
             docker compose --env-file .env up -d
             docker image prune -f

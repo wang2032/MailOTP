@@ -92,10 +92,10 @@ MAIL_DOMAIN=joeystory.xyz
 CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080
 ```
 
-The deploy job writes `/opt/mailotp/docker-compose.yml` on the server and runs:
+The deploy job uploads a Docker image archive to `/opt/mailotp/mailotp-image.tar`, writes `/opt/mailotp/docker-compose.yml`, and runs:
 
 ```bash
-docker compose --env-file .env pull
+docker load -i /opt/mailotp/mailotp-image.tar
 docker compose --env-file .env up -d
 ```
 
