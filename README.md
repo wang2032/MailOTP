@@ -5,7 +5,7 @@ Catch-all email OTP inbox MVP.
 This repository contains three deployable parts:
 
 - `apps/api`: Go backend with PostgreSQL storage.
-- `apps/web`: Next.js frontend for creating inbox aliases and viewing the latest OTP.
+- `apps/web`: Vite React frontend for creating inbox aliases and viewing the latest OTP.
 - `apps/worker`: Cloudflare Email Worker that receives routed mail and posts parsed messages to the API.
 
 The MVP flow is:
@@ -14,7 +14,7 @@ The MVP flow is:
 2. The Email Worker extracts the local alias and the likely OTP code.
 3. The Worker calls `POST /mail` on the API with a bearer token.
 4. The API stores the message in PostgreSQL.
-5. The Next.js frontend reads inbox state from the API.
+5. The Vite React frontend reads inbox state from the API.
 
 This project is intended for inboxes and domains you own and operate. It does not include automation for creating third-party accounts or bypassing platform rules.
 
@@ -62,6 +62,7 @@ docker run --rm -p 18080:8080 \
   -e DATABASE_URL='postgres://postgres:password@host.docker.internal:35432/mailotp?sslmode=disable' \
   -e REDIS_URL='redis://host.docker.internal:26739' \
   -e WEBHOOK_SECRET='change-me' \
+  -e INBOX_CREATE_PASSWORD='change-me-too' \
   -e MAIL_DOMAIN='joeystory.xyz' \
   --add-host host.docker.internal:host-gateway \
   mailotp:latest
@@ -90,6 +91,7 @@ DOCKER_IMAGE=harbor.10rig.com:8443/apps/mailotp:latest
 DATABASE_URL=postgres://postgres:<password>@host.docker.internal:35432/mailotp?sslmode=disable
 REDIS_URL=redis://host.docker.internal:26739
 WEBHOOK_SECRET=<shared-secret>
+INBOX_CREATE_PASSWORD=<password-required-to-create-inboxes>
 MAIL_DOMAIN=joeystory.xyz
 CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080
 ```
@@ -121,7 +123,7 @@ Use the same `WEBHOOK_SECRET` in `apps/api/.env`.
 
 ## API
 
-- `POST /api/inboxes`: create an inbox alias.
+- `POST /api/inboxes`: create an inbox alias, requires `password` when `INBOX_CREATE_PASSWORD` is set.
 - `GET /api/inboxes/{alias}`: get inbox and recent messages.
 - `GET /api/inbox/{alias}`: get the latest OTP in the simple MVP response shape.
 - `POST /mail`: Worker webhook, requires `Authorization: Bearer <WEBHOOK_SECRET>`.

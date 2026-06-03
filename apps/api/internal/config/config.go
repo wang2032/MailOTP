@@ -7,26 +7,28 @@ import (
 )
 
 type Config struct {
-	DatabaseURL      string
-	WebhookSecret    string
-	MailDomain       string
-	HTTPAddr         string
-	StaticDir        string
-	AutoCreateTables bool
-	CORSOrigins      []string
+	DatabaseURL         string
+	WebhookSecret       string
+	InboxCreatePassword string
+	MailDomain          string
+	HTTPAddr            string
+	StaticDir           string
+	AutoCreateTables    bool
+	CORSOrigins         []string
 }
 
 func Load() Config {
 	loadDotEnv(".env")
 
 	return Config{
-		DatabaseURL:      env("DATABASE_URL", "postgres://mailotp:mailotp@localhost:5432/mailotp?sslmode=disable"),
-		WebhookSecret:    env("WEBHOOK_SECRET", "change-me"),
-		MailDomain:       env("MAIL_DOMAIN", "mailotp.com"),
-		HTTPAddr:         env("HTTP_ADDR", ":8000"),
-		StaticDir:        env("STATIC_DIR", ""),
-		AutoCreateTables: env("AUTO_CREATE_TABLES", "true") == "true",
-		CORSOrigins:      splitCSV(env("CORS_ORIGINS", "http://localhost:3000")),
+		DatabaseURL:         env("DATABASE_URL", "postgres://mailotp:mailotp@localhost:5432/mailotp?sslmode=disable"),
+		WebhookSecret:       env("WEBHOOK_SECRET", "change-me"),
+		InboxCreatePassword: env("INBOX_CREATE_PASSWORD", ""),
+		MailDomain:          env("MAIL_DOMAIN", "mailotp.com"),
+		HTTPAddr:            env("HTTP_ADDR", ":8000"),
+		StaticDir:           env("STATIC_DIR", ""),
+		AutoCreateTables:    env("AUTO_CREATE_TABLES", "true") == "true",
+		CORSOrigins:         splitCSV(env("CORS_ORIGINS", "http://localhost:3000")),
 	}
 }
 

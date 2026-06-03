@@ -71,6 +71,7 @@ jobs:
                 echo "DATABASE_URL="
                 echo "REDIS_URL="
                 echo "WEBHOOK_SECRET="
+                echo "INBOX_CREATE_PASSWORD="
                 echo "MAIL_DOMAIN=joeystory.xyz"
                 echo "CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080"
               } > /opt/mailotp/.env
@@ -94,6 +95,7 @@ jobs:
                   DATABASE_URL: "${DATABASE_URL}"
                   REDIS_URL: "${REDIS_URL}"
                   WEBHOOK_SECRET: "${WEBHOOK_SECRET}"
+                  INBOX_CREATE_PASSWORD: "${INBOX_CREATE_PASSWORD}"
                   MAIL_DOMAIN: "${MAIL_DOMAIN}"
                   HTTP_ADDR: ":8080"
                   STATIC_DIR: "/app/web"

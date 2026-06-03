@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,9 +32,10 @@ type server struct {
 }
 
 type inboxCreateRequest struct {
-	Alias  string `json:"alias"`
-	UserID string `json:"user_id"`
-	Label  string `json:"label"`
+	Alias    string `json:"alias"`
+	UserID   string `json:"user_id"`
+	Label    string `json:"label"`
+	Password string `json:"password"`
 }
 
 type mailRequest struct {
@@ -132,6 +134,10 @@ func (s *server) createInbox(w http.ResponseWriter, r *http.Request) {
 	var req inboxCreateRequest
 	if err := readJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !s.inboxCreateAllowed(req.Password) {
+		writeError(w, http.StatusUnauthorized, "invalid inbox creation password")
 		return
 	}
 
@@ -345,17 +351,13 @@ func (s *server) receiveMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inboxID, err := newUUID()
+	inbox, err := s.store.FindInbox(r.Context(), alias)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if _, err := s.store.EnsureInbox(r.Context(), store.Inbox{
-		ID:        inboxID,
-		Alias:     alias,
-		CreatedAt: time.Now().UTC(),
-	}); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if inbox == nil {
+		writeError(w, http.StatusNotFound, "inbox not found")
 		return
 	}
 
@@ -418,6 +420,14 @@ func (s *server) generateUniqueAlias(ctx context.Context) (string, error) {
 
 func (s *server) emailFor(alias string) string {
 	return alias + "@" + s.cfg.MailDomain
+}
+
+func (s *server) inboxCreateAllowed(password string) bool {
+	expected := s.cfg.InboxCreatePassword
+	if expected == "" {
+		return true
+	}
+	return subtle.ConstantTimeCompare([]byte(password), []byte(expected)) == 1
 }
 
 func normalizeAlias(value string) (string, error) {

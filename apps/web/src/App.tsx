@@ -29,6 +29,7 @@ const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 export default function App() {
   const [aliasInput, setAliasInput] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
   const [activeAlias, setActiveAlias] = useState("");
   const [inbox, setInbox] = useState<InboxResponse | null>(null);
   const [mailDomain, setMailDomain] = useState("");
@@ -115,6 +116,12 @@ export default function App() {
   }
 
   async function createInbox(alias: string) {
+    const password = createPassword.trim();
+    if (!password) {
+      setError("请输入创建密码。");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
@@ -122,7 +129,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        body: JSON.stringify(alias ? { alias } : {}),
+        body: JSON.stringify(alias ? { alias, password } : { password }),
       });
       const payload = await parseResponse<InboxResponse>(response);
       setInbox(payload);
@@ -215,7 +222,7 @@ export default function App() {
           </div>
 
           <form className="control-stack" onSubmit={createCustomInbox}>
-            <button type="button" className="wide-action" onClick={createRandomInbox} disabled={loading}>
+            <button type="button" className="wide-action" onClick={createRandomInbox} disabled={loading || !createPassword.trim()}>
               {loading ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
               随机生成邮箱
             </button>
@@ -229,8 +236,17 @@ export default function App() {
               spellCheck={false}
             />
             <p className="helper-text">输入别名可创建或打开固定邮箱。</p>
+            <label htmlFor="create-password">创建密码</label>
+            <input
+              id="create-password"
+              type="password"
+              value={createPassword}
+              onChange={(event) => setCreatePassword(event.target.value)}
+              placeholder="订单自动化创建密钥"
+              autoComplete="off"
+            />
             <div className="button-row">
-              <button type="submit" disabled={loading || !aliasInput.trim()}>
+              <button type="submit" disabled={loading || !aliasInput.trim() || !createPassword.trim()}>
                 <Plus size={16} />
                 创建自定义
               </button>
