@@ -22,7 +22,7 @@ export default {
     const raw = await streamToText(message.raw);
     const subject = decodeMimeWords(getHeader(message.headers, "subject") || parseHeader(raw, "subject"));
     const alias = aliasFromAddress(message.to, env.MAIL_DOMAIN);
-    const content = extractContent(raw).slice(0, 50_000);
+    const content = extractContent(raw, message.headers).slice(0, 50_000);
     const code = extractCode(subject, content);
     const providerMessageId = getHeader(message.headers, "message-id") || parseHeader(raw, "message-id");
 
@@ -68,8 +68,8 @@ function messageBody(raw: string): string {
   return splitAt >= 0 ? normalized.slice(splitAt + 2) : normalized;
 }
 
-function extractContent(raw: string): string {
-  const parts = extractMimeParts(raw);
+function extractContent(raw: string, headers: Headers): string {
+  const parts = extractMimeParts(raw, headers);
   const candidates = parts.length > 0 ? parts : [raw];
   return candidates
     .map((part) => decodeTransferBody(part))
@@ -79,8 +79,8 @@ function extractContent(raw: string): string {
     .trim();
 }
 
-function extractMimeParts(raw: string): string[] {
-  const boundary = parseBoundary(raw);
+function extractMimeParts(raw: string, headers: Headers): string[] {
+  const boundary = parseBoundary(raw, headers);
   if (!boundary) {
     return [];
   }
@@ -93,10 +93,17 @@ function extractMimeParts(raw: string): string[] {
     .map((part) => part.trim());
 }
 
-function parseBoundary(raw: string): string {
-  const contentType = parseHeader(raw, "content-type");
+function parseBoundary(raw: string, headers: Headers): string {
+  const contentType = getHeader(headers, "content-type") || parseHeader(raw, "content-type");
   const match = contentType.match(/boundary=(?:"([^"]+)"|([^;\s]+))/i);
-  return (match?.[1] || match?.[2] || "").trim();
+  const fromHeader = (match?.[1] || match?.[2] || "").trim();
+  if (fromHeader) {
+    return fromHeader;
+  }
+
+  const normalized = raw.replace(/\r\n/g, "\n");
+  const fromBody = normalized.match(/^--([^\s-][^\n]+)$/m);
+  return fromBody?.[1]?.trim() || "";
 }
 
 function decodeTransferBody(value: string): string {
