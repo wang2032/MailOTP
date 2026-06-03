@@ -69,6 +69,19 @@ docker run --rm -p 18080:8080 \
 
 For DockerHub automated builds, use the repository root as the build context and `Dockerfile` as the Dockerfile path.
 
+## GitHub Actions to DockerHub
+
+The workflow at `.github/workflows/dockerhub.yml` builds and pushes the image on pushes to `main`.
+
+Configure these GitHub repository secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Optional repository variable:
+
+- `DOCKERHUB_IMAGE`, defaults to `mailotp`
+
 ## Cloudflare
 
 1. Put your domain on Cloudflare DNS.
