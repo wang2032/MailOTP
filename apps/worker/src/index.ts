@@ -102,7 +102,7 @@ function parseBoundary(raw: string, headers: Headers): string {
   }
 
   const normalized = raw.replace(/\r\n/g, "\n");
-  const fromBody = normalized.match(/^--([^\s-][^\n]+)$/m);
+  const fromBody = normalized.match(/^--(.+?)$/m);
   return fromBody?.[1]?.trim() || "";
 }
 
