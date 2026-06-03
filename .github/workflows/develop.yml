@@ -66,14 +66,14 @@ jobs:
             IMAGE_REF=${HARBOR_HOST}/${HARBOR_PROJECT}/mailotp:latest
 
             if [ ! -f /opt/mailotp/.env ]; then
-              cat > /opt/mailotp/.env <<EOF
-            DOCKER_IMAGE=${IMAGE_REF}
-            DATABASE_URL=
-            REDIS_URL=
-            WEBHOOK_SECRET=
-            MAIL_DOMAIN=joeystory.xyz
-            CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080
-EOF
+              {
+                echo "DOCKER_IMAGE=${IMAGE_REF}"
+                echo "DATABASE_URL="
+                echo "REDIS_URL="
+                echo "WEBHOOK_SECRET="
+                echo "MAIL_DOMAIN=joeystory.xyz"
+                echo "CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080"
+              } > /opt/mailotp/.env
               chmod 600 /opt/mailotp/.env
             else
               if grep -q '^DOCKER_IMAGE=' /opt/mailotp/.env; then
