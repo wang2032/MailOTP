@@ -69,18 +69,35 @@ docker run --rm -p 18080:8080 \
 
 For DockerHub automated builds, use the repository root as the build context and `Dockerfile` as the Dockerfile path.
 
-## GitHub Actions to DockerHub
+## GitHub Actions to DockerHub and Server
 
-The workflow at `.github/workflows/dockerhub.yml` builds and pushes the image on pushes to `main`.
+The workflow at `.github/workflows/develop.yml` builds the image, pushes it to DockerHub, then deploys it on the server with Docker Compose.
 
 Configure these GitHub repository secrets:
 
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
+- `DOCKERHUB_USERNAME`: DockerHub username, for example `joeywang2032`
+- `DOCKERHUB_TOKEN`: DockerHub access token
+- `DEPLOY_HOST`: deployment server host, for example `117.72.157.82`
+- `DEPLOY_USER`: SSH user, for example `root`
+- `DEPLOY_PASSWORD`: SSH password
 
-Optional repository variable:
+Runtime app configuration lives on the server in `/opt/mailotp/.env`, not in GitHub Secrets:
 
-- `DOCKERHUB_IMAGE`, defaults to `mailotp`
+```bash
+DOCKER_IMAGE=joeywang2032/mailotp:latest
+DATABASE_URL=postgres://postgres:<password>@host.docker.internal:35432/mailotp?sslmode=disable
+REDIS_URL=redis://host.docker.internal:26739
+WEBHOOK_SECRET=<shared-secret>
+MAIL_DOMAIN=joeystory.xyz
+CORS_ORIGINS=http://joeystory.xyz,http://117.72.157.82:18080
+```
+
+The deploy job writes `/opt/mailotp/docker-compose.yml` on the server and runs:
+
+```bash
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
+```
 
 ## Cloudflare
 

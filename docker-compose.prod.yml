@@ -1,17 +1,17 @@
 services:
   mailotp:
-    image: joeywang2032/mailotp:latest
+    image: ${DOCKER_IMAGE:-joeywang2032/mailotp:latest}
     restart: unless-stopped
     ports:
       - "18080:8080"
     environment:
-      DATABASE_URL: "postgres://postgres:AAaThmtM8BGpL34p@host.docker.internal:35432/mailotp?sslmode=disable"
-      REDIS_URL: "redis://host.docker.internal:26739"
-      WEBHOOK_SECRET: "65454f32d20df2d12bc424e64f672e897e7610e9f950bcc0434bc071cc2f7156"
-      MAIL_DOMAIN: "joeystory.xyz"
+      DATABASE_URL: "${DATABASE_URL}"
+      REDIS_URL: "${REDIS_URL}"
+      WEBHOOK_SECRET: "${WEBHOOK_SECRET}"
+      MAIL_DOMAIN: "${MAIL_DOMAIN}"
       HTTP_ADDR: ":8080"
       STATIC_DIR: "/app/web"
       AUTO_CREATE_TABLES: "true"
-      CORS_ORIGINS: "http://joeystory.xyz,http://joeystory.xyz:18080,http://117.72.157.82:18080,http://localhost:3000"
+      CORS_ORIGINS: "${CORS_ORIGINS}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
